@@ -26,8 +26,19 @@ def send_to_grok(data_dict, api_key, expert_choice):
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Here is my dataset: {data_dict}. Identify patterns, correlations, anomalies, and efficiency trends."}
     ]
-    response = requests.post(url, headers=headers, json={"model": "grok-3", "messages": messages})
-    return response.json()["choices"][0]["message"]["content"]
+
+    try:
+        response = requests.post(url, headers=headers, json={"model": "grok-3", "messages": messages})
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+    except requests.exceptions.RequestException as e:
+        return f"🔴 API request failed: {str(e)}"
+    except ValueError:
+        return f"🔴 Failed to decode JSON. Raw response:\n{response.text}"
+    except KeyError:
+        return f"⚠️ Unexpected JSON format: {response.json()}"
+
 
 def detect_anomalies(df):
     numeric_df = df.select_dtypes(include='number').dropna()
