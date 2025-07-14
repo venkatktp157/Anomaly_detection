@@ -16,12 +16,15 @@ def get_system_prompt(expert_choice):
     return ROLE_PROMPTS.get(expert_choice, ROLE_PROMPTS["🧑‍🔬 Data Scientist"])
 
 def send_to_grok(data_dict, api_key, expert_choice):
+    import json
+
     system_prompt = get_system_prompt(expert_choice)
     url = "https://api.cometapi.com/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Here is my dataset: {data_dict}. Identify patterns, correlations, anomalies, and efficiency trends."}
@@ -30,14 +33,14 @@ def send_to_grok(data_dict, api_key, expert_choice):
     try:
         response = requests.post(url, headers=headers, json={"model": "grok-3", "messages": messages})
         response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"]
+
+    except json.JSONDecodeError:
+        return f"🔴 Failed to parse JSON. Raw response:\n{response.content.decode(errors='replace')}"
     except requests.exceptions.RequestException as e:
-        return f"🔴 API request failed: {str(e)}"
-    except ValueError:
-        return f"🔴 Failed to decode JSON. Raw response:\n{response.text}"
+        return f"🔴 API request error:\n{str(e)}"
     except KeyError:
-        return f"⚠️ Unexpected JSON format: {response.json()}"
+        return f"⚠️ Unexpected response structure:\n{response.text}"
 
 
 def detect_anomalies(df):
