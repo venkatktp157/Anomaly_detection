@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import json
 import sys
 import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
 
 # 🧠 Expert Role Prompts
 ROLE_PROMPTS = {
@@ -89,20 +90,43 @@ def run_clustering(df, n_clusters=3):
     return df, kmeans
 
 # 🤔 Impact Simulator
-from sklearn.linear_model import LinearRegression
 
-def simulate_impact(df, feature_values, target="FOC"):
-    df_clean = df.dropna()
-    features = df_clean.select_dtypes("number").drop(columns=[target])
-    target_values = df_clean[target]
+def simulate_impact(df, user_inputs, target):
+    """
+    Predicts the impact on a target metric using Random Forest regression
+    based on user-modified operational inputs.
 
-    model = LinearRegression()
-    model.fit(features, target_values)
+    Parameters:
+    - df (pd.DataFrame): Dataset containing numeric features and target.
+    - user_inputs (dict): Dictionary of simulated feature values.
+    - target (str): Name of the target column to predict.
 
-    new_input = features.mean().to_dict()
-    new_input.update(feature_values)  # Apply user overrides
+    Returns:
+    - pd.DataFrame: Modified features + predicted target.
+    """
 
-    predicted = model.predict([list(new_input.values())])[0]
-    new_input[target] = predicted
+    # Validate target
+    if target not in df.columns:
+        raise ValueError(f"Target column '{target}' not found.")
 
-    return pd.DataFrame([new_input])
+    # Select numeric features excluding the target
+    features = [col for col in df.select_dtypes(include="number").columns if col != target]
+    X = df[features]
+    y = df[target]
+
+    # Train Random Forest Regressor
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X, y)
+
+    # Prepare simulation input
+    simulated_df = pd.DataFrame([user_inputs], columns=features)
+
+    # Predict target metric
+    predicted_value = model.predict(simulated_df)[0]
+
+    # Combine simulated inputs and predicted target
+    result_df = simulated_df.copy()
+    result_df[target] = predicted_value
+    result_df.index = ["Simulated"]
+
+    return result_df
