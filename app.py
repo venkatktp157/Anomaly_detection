@@ -46,16 +46,17 @@ with tab2:
             st.write(response)
 
 with tab3:
-    if "df" in st.session_state:
-        df = st.session_state["df"]
-        st.subheader("📊 Full Dataset Mode")
-        st.line_chart(df.select_dtypes('number'))
-        if st.button("Analyze Full Dataset with Groq"):
-            response, is_summary = safe_send(df, groq_key, expert_choice, use_summary=False)
-            if is_summary:
-                st.warning("⚠️ Summary sent due to size or toggle.")
-            st.markdown("### 🧠 Groq Full Analysis")
-            st.write(response)
+    st.subheader("📊 Groq Full Dataset Analysis")
+
+    use_summary = st.toggle("Use summary for full dataset?", value=True)
+    
+    if st.button("Analyze Full Dataset with Groq"):
+        response, is_summary = safe_send(df, groq_key, expert_choice, use_summary=use_summary)
+        if is_summary:
+            st.warning("⚠️ Summary sent due to size or toggle.")
+        st.markdown("### 🧠 Groq Full Analysis")
+        st.write(response)
+
 
 with tab4:
     if "df" in st.session_state:
@@ -88,9 +89,18 @@ with tab7:
     if "df" in st.session_state:
         st.subheader("🤔 What-If Simulation")
         df = st.session_state["df"]
-        metric = st.selectbox("Select Metric", df.select_dtypes("number").columns)
-        value = st.number_input(f"Set {metric} value for simulation", value=float(df[metric].mean()))
-        if st.button("Run Simulation"):
-            result = simulate_impact(df, metric, value)
-            st.write(f"📊 Impact Summary for {metric} = {value}")
+        numeric_cols = df.select_dtypes("number").columns.tolist()
+        target_col = st.selectbox("🎯 Target Metric to Predict", numeric_cols, index=numeric_cols.index("FOC") if "FOC" in numeric_cols else 0)
+
+        st.markdown("⚙️ Modify the following inputs:")
+        user_inputs = {}
+        for col in numeric_cols:
+            if col != target_col:
+                val = st.number_input(f"{col}", value=float(df[col].mean()))
+                user_inputs[col] = val
+
+        if st.button("Run What-If Simulation"):
+            result = simulate_impact(df, user_inputs, target=target_col)
+            st.success(f"✅ Predicted {target_col} = {result[target_col].values[0]:.2f}")
+            st.subheader("📊 Simulated Operational Metrics")
             st.dataframe(result)

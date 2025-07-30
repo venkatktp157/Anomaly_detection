@@ -5,6 +5,7 @@ import shap
 import matplotlib.pyplot as plt
 import json
 import sys
+import pandas as pd
 
 # 🧠 Expert Role Prompts
 ROLE_PROMPTS = {
@@ -88,7 +89,20 @@ def run_clustering(df, n_clusters=3):
     return df, kmeans
 
 # 🤔 Impact Simulator
-def simulate_impact(df, metric, value):
-    df_sim = df.copy()
-    df_sim[metric] = value
-    return df_sim.describe()
+from sklearn.linear_model import LinearRegression
+
+def simulate_impact(df, feature_values, target="FOC"):
+    df_clean = df.dropna()
+    features = df_clean.select_dtypes("number").drop(columns=[target])
+    target_values = df_clean[target]
+
+    model = LinearRegression()
+    model.fit(features, target_values)
+
+    new_input = features.mean().to_dict()
+    new_input.update(feature_values)  # Apply user overrides
+
+    predicted = model.predict([list(new_input.values())])[0]
+    new_input[target] = predicted
+
+    return pd.DataFrame([new_input])
