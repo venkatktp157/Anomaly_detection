@@ -3,6 +3,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.cluster import KMeans
 import shap
 import matplotlib.pyplot as plt
+import json
 
 # Expert Role Map
 ROLE_PROMPTS = {
@@ -15,11 +16,9 @@ ROLE_PROMPTS = {
 def get_system_prompt(expert_choice):
     return ROLE_PROMPTS.get(expert_choice, ROLE_PROMPTS["🧑‍🔬 Data Scientist"])
 
-def send_to_grok(data_dict, api_key, expert_choice):
-    import json
-
+def send_to_groq(data_dict, api_key, expert_choice):
     system_prompt = get_system_prompt(expert_choice)
-    url = "https://api.cometapi.com/v1/chat/completions"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
@@ -27,11 +26,17 @@ def send_to_grok(data_dict, api_key, expert_choice):
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Here is my dataset: {data_dict}. Identify patterns, correlations, anomalies, and efficiency trends."}
+        {"role": "user", "content": f"Here is my dataset: {json.dumps(data_dict)}. Identify patterns, correlations, anomalies, and efficiency trends."}
     ]
 
+    payload = {
+        "model": "llama3-8b-8192",
+        "messages": messages,
+        "temperature": 0.7
+    }
+
     try:
-        response = requests.post(url, headers=headers, json={"model": "grok-3", "messages": messages})
+        response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
 
@@ -41,7 +46,6 @@ def send_to_grok(data_dict, api_key, expert_choice):
         return f"🔴 API request error:\n{str(e)}"
     except KeyError:
         return f"⚠️ Unexpected response structure:\n{response.text}"
-
 
 def detect_anomalies(df):
     numeric_df = df.select_dtypes(include='number').dropna()
