@@ -4,8 +4,9 @@ from sklearn.cluster import KMeans
 import shap
 import matplotlib.pyplot as plt
 import json
+import sys
 
-# Expert Role Map
+# 🧠 Expert Role Prompts
 ROLE_PROMPTS = {
     "🧑‍🔬 Data Scientist": "You're a data scientist skilled in operational metrics and visualization.",
     "⚡ Fuel Strategist": "You're a fuel efficiency strategist specializing in RPM, power, and fuel optimization.",
@@ -16,8 +17,27 @@ ROLE_PROMPTS = {
 def get_system_prompt(expert_choice):
     return ROLE_PROMPTS.get(expert_choice, ROLE_PROMPTS["🧑‍🔬 Data Scientist"])
 
-def send_to_groq(data_dict, api_key, expert_choice):
+# 🧩 NEW: Payload Preparer
+def prepare_payload(df, use_summary=False):
+    """
+    Determines whether to send full or summarized data based on size or toggle.
+    """
+    full_dict = df.to_dict()
+    size_estimate = sys.getsizeof(json.dumps(full_dict))
+
+    if size_estimate > 900000 or use_summary:
+        summary_dict = df.describe(include='all').to_dict()
+        return summary_dict, True  # True = summary mode
+    return full_dict, False  # False = full data mode
+
+# 🚀 NEW: Modularized safe_send with Groq
+def safe_send(df, api_key, expert_choice, use_summary=False):
+    """
+    Sends data to Groq API, gracefully falling back to summary mode.
+    """
+    data_dict, is_summary = prepare_payload(df, use_summary)
     system_prompt = get_system_prompt(expert_choice)
+
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -38,15 +58,16 @@ def send_to_groq(data_dict, api_key, expert_choice):
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"], is_summary
 
     except json.JSONDecodeError:
-        return f"🔴 Failed to parse JSON. Raw response:\n{response.content.decode(errors='replace')}"
+        return f"🔴 Failed to parse JSON. Raw response:\n{response.content.decode(errors='replace')}", is_summary
     except requests.exceptions.RequestException as e:
-        return f"🔴 API request error:\n{str(e)}"
+        return f"🔴 API request error:\n{str(e)}", is_summary
     except KeyError:
-        return f"⚠️ Unexpected response structure:\n{response.text}"
+        return f"⚠️ Unexpected response structure:\n{response.text}", is_summary
 
+# ⚠️ SHAP Anomaly Detection
 def detect_anomalies(df):
     numeric_df = df.select_dtypes(include='number').dropna()
     iso = IsolationForest(contamination=0.1, random_state=42)
@@ -59,12 +80,14 @@ def detect_anomalies(df):
     shap.plots.beeswarm(shap_values, max_display=10, show=False)
     return fig, df[df['anomaly'] == -1]
 
+# 🧮 Clustering
 def run_clustering(df, n_clusters=3):
     numeric_df = df.select_dtypes(include="number").dropna()
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
     df["cluster"] = kmeans.fit_predict(numeric_df)
     return df, kmeans
 
+# 🤔 Impact Simulator
 def simulate_impact(df, metric, value):
     df_sim = df.copy()
     df_sim[metric] = value

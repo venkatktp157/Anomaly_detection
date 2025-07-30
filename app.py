@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import os
-from utils import send_to_groq, detect_anomalies, run_clustering, simulate_impact
+from utils import safe_send, detect_anomalies, run_clustering, simulate_impact
 
 st.set_page_config(page_title="Grok Agentic Operational Analyzer", layout="wide")
-st.title("📊 Groq Agentic Operational Analyzer")
+st.title("📊 Grok Agentic Operational Analyzer")
 
-# 🔑 Load Groq API Key
+# 🔑 Load Groq API Key securely
 groq_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
 
 # 🧠 Expert Role Selector
@@ -19,7 +19,7 @@ role_options = {
 expert_choice = st.sidebar.selectbox("👨‍🏫 Select Expert", list(role_options.keys()))
 st.sidebar.info(f"ℹ️ {role_options[expert_choice]}")
 
-# 📁 Data Upload and Mode Tabs
+# 📁 Data Upload and Tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📁 Upload", "🧪 Sample Mode", "📊 Full Dataset", "⚠️ Anomaly Detection",
     "🧠 Groq Summary", "🧮 Clustering", "🤔 What-If Simulator"
@@ -39,7 +39,9 @@ with tab2:
         st.subheader("🧪 Sample Mode")
         st.dataframe(sample)
         if st.button("Analyze Sample with Groq"):
-            response = send_to_groq(sample.to_dict(), groq_key, expert_choice)
+            response, is_summary = safe_send(sample, groq_key, expert_choice, use_summary=False)
+            if is_summary:
+                st.warning("⚠️ Summary sent due to size or toggle.")
             st.markdown("### 🔍 Groq Insights")
             st.write(response)
 
@@ -49,7 +51,9 @@ with tab3:
         st.subheader("📊 Full Dataset Mode")
         st.line_chart(df.select_dtypes('number'))
         if st.button("Analyze Full Dataset with Groq"):
-            response = send_to_groq(df.to_dict(), groq_key, expert_choice)
+            response, is_summary = safe_send(df, groq_key, expert_choice, use_summary=False)
+            if is_summary:
+                st.warning("⚠️ Summary sent due to size or toggle.")
             st.markdown("### 🧠 Groq Full Analysis")
             st.write(response)
 
@@ -64,7 +68,10 @@ with tab4:
 with tab5:
     if "df" in st.session_state:
         st.subheader("🧠 Narrative Summary")
-        response = send_to_groq(st.session_state["df"].to_dict(), groq_key, expert_choice)
+        df = st.session_state["df"]
+        response, is_summary = safe_send(df, groq_key, expert_choice, use_summary=True)
+        if is_summary:
+            st.info("ℹ️ Using statistical summary for this analysis.")
         st.write(response)
 
 with tab6:
