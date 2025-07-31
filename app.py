@@ -133,8 +133,17 @@ if auth_status:
             if st.button("Run What-If Simulation"):
                 
                 # Load model bundle
-                with open(bundle_path, "rb") as f:
-                    bundle = pickle.load(f)
+                try:
+                    model_path = os.path.join(os.path.dirname(__file__), "rf_model_shap_timeseries.pkl")
+                    st.write("📄 Model path:", model_path)
+                    st.write("✅ File exists?", os.path.exists(model_path))
+
+                    with open(model_path, "rb") as f:
+                        bundle = pickle.load(f)
+                        
+                except FileNotFoundError:
+                    st.error("❌ Model file not found. Please make sure 'iforest_shap_timeseries.pkl' is placed in the root of your repo.")
+                    st.stop()
 
                 model = bundle["model"]
                 scaler = bundle["scaler"]
@@ -155,3 +164,9 @@ if auth_status:
                     st.subheader("🔎 SHAP Impact for Simulation")
                     shap_values = explainer(scaled_inputs)
                     shap.plots.waterfall(shap_values[0])
+
+elif auth_status == False:
+    st.error("Username/password is incorrect ❌")
+
+elif auth_status == None:
+    st.warning("Please enter your username and password 🔐")
