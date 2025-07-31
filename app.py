@@ -116,62 +116,56 @@ if auth_status:
             st.scatter_chart(clustered_df, x=selected_feature, y="FOC", color="cluster")
 
     with tab7:
-        if "df" in st.session_state:
-            st.subheader("🤔 What-If Simulation")
+            if "df" in st.session_state:
+                st.subheader("🤔 What-If Simulation")
 
-            df = st.session_state["df"]
-            numeric_cols = df.select_dtypes("number").columns.tolist()
+                df = st.session_state["df"]
 
-            target_col = st.selectbox("🎯 Target Metric to Predict", numeric_cols, index=numeric_cols.index("FOC") if "FOC" in numeric_cols else 0)
-            feature_order = [col for col in numeric_cols if col != target_col]
+                # Filter numeric columns except 'anomaly' and 'cluster'
+                numeric_cols = df.select_dtypes("number").columns.tolist()
+                excluded_cols = ["anomaly", "cluster"]
+                numeric_cols = [col for col in numeric_cols if col not in excluded_cols]
 
-            st.markdown("⚙️ Modify the following inputs:")
-            user_inputs = {col: st.number_input(f"{col}", value=float(df[col].mean())) for col in feature_order}
+                target_col = st.selectbox("🎯 Target Metric to Predict", numeric_cols, index=numeric_cols.index("FOC") if "FOC" in numeric_cols else 0)
+                feature_order = [col for col in numeric_cols if col != target_col]
 
-            #bundle_path = "rf_model_shap_timeseries.pkl"  # GitHub root
+                st.markdown("⚙️ Modify the following inputs:")
+                user_inputs = {col: st.number_input(f"{col}", value=float(df[col].mean())) for col in feature_order}
 
-            if st.button("Run What-If Simulation"):
-                
-                # Load model bundle
-                try:
-                    model_path = "rf_model_shap_timeseries.pkl"
-                    st.write("📄 Model path:", model_path)
-                    st.write("✅ File exists?", os.path.exists(model_path))
+                if st.button("Run What-If Simulation"):
+                    try:
+                        model_path = "rf_model_shap_timeseries.pkl"
+                        st.write("📄 Model path:", model_path)
+                        st.write("✅ File exists?", os.path.exists(model_path))
 
-                    with open(model_path, "rb") as f:
-                        bundle = pickle.load(f)
+                        with open(model_path, "rb") as f:
+                            bundle = pickle.load(f)
 
-                    model = bundle["model"]
-                    scaler = bundle["scaler"]
-                    explainer = bundle.get("explainer")  # Optional for SHAP
+                        model = bundle["model"]
+                        scaler = bundle["scaler"]
+                        explainer = bundle.get("explainer")
 
-                except FileNotFoundError:
-                    st.error("❌ Model file not found. Please confirm it's placed in the root directory.")
-                    st.stop()
+                        # Prepare user input as DataFrame and scale
+                        user_df = pd.DataFrame([user_inputs])
+                        scaled_inputs = scaler.transform(user_df)
+                        pred = model.predict(scaled_inputs)[0]
 
-                except Exception as e:
-                    st.error(f"⚠️ Unexpected error while loading model: {e}")
-                    st.stop()
+                        st.success(f"✅ Predicted {target_col} = {pred:.2f}")
+                        st.subheader("📊 Simulated Operational Metrics")
+                        st.dataframe(user_df.assign(**{target_col: pred}))
 
-                model = bundle["model"]
-                scaler = bundle["scaler"]
-                explainer = bundle.get("explainer")  # Optional for SHAP
+                        if explainer:
+                            st.subheader("🔎 SHAP Impact for Simulation")
+                            shap_values = explainer(scaled_inputs)
+                            shap.plots.waterfall(shap_values[0])
 
-                # Format and scale inputs
-                user_df = pd.DataFrame([user_inputs])
-                scaled_inputs = scaler.transform(user_df)
-                pred = model.predict(scaled_inputs)[0]
+                    except FileNotFoundError:
+                        st.error("❌ Model file not found. Please confirm it’s placed in the root directory.")
+                        st.stop()
 
-                # Display prediction
-                st.success(f"✅ Predicted {target_col} = {pred:.2f}")
-                st.subheader("📊 Simulated Operational Metrics")
-                st.dataframe(user_df.assign(**{target_col: pred}))
-
-                # Optional SHAP display
-                if explainer:
-                    st.subheader("🔎 SHAP Impact for Simulation")
-                    shap_values = explainer(scaled_inputs)
-                    shap.plots.waterfall(shap_values[0])
+                    except Exception as e:
+                        st.error(f"⚠️ Unexpected error during simulation: {e}")
+                        st.stop()
 
 elif auth_status == False:
     st.error("Username/password is incorrect ❌")
