@@ -134,15 +134,23 @@ if auth_status:
                 
                 # Load model bundle
                 try:
-                    model_path = os.path.join(os.path.dirname(__file__), "rf_model_shap_timeseries.pkl")
+                    model_path = "rf_model_shap_timeseries.pkl"
                     st.write("📄 Model path:", model_path)
                     st.write("✅ File exists?", os.path.exists(model_path))
 
                     with open(model_path, "rb") as f:
                         bundle = pickle.load(f)
 
+                    model = bundle["model"]
+                    scaler = bundle["scaler"]
+                    explainer = bundle.get("explainer")  # Optional for SHAP
+
                 except FileNotFoundError:
-                    st.error("❌ Model file not found. Please make sure 'rf_model_shap_timeseries.pkl' is placed in the root of your repo.")
+                    st.error("❌ Model file not found. Please confirm it's placed in the root directory.")
+                    st.stop()
+
+                except Exception as e:
+                    st.error(f"⚠️ Unexpected error while loading model: {e}")
                     st.stop()
 
                 model = bundle["model"]
