@@ -7,7 +7,7 @@ user_activity.log
 
 # Ignore pkl files except the SHAP model
 *.pkl
-rf_model_shap_timeseries.pkl
+!rf_model_shap_timeseries.pkl
 
 # System files
 .DS_Store
