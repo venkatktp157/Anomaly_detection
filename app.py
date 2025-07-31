@@ -128,7 +128,7 @@ if auth_status:
             st.markdown("⚙️ Modify the following inputs:")
             user_inputs = {col: st.number_input(f"{col}", value=float(df[col].mean())) for col in feature_order}
 
-            bundle_path = "rf_model_shap_timeseries.pkl"  # GitHub root
+            #bundle_path = "rf_model_shap_timeseries.pkl"  # GitHub root
 
             if st.button("Run What-If Simulation"):
                 
@@ -140,9 +140,9 @@ if auth_status:
 
                     with open(model_path, "rb") as f:
                         bundle = pickle.load(f)
-                        
+
                 except FileNotFoundError:
-                    st.error("❌ Model file not found. Please make sure 'iforest_shap_timeseries.pkl' is placed in the root of your repo.")
+                    st.error("❌ Model file not found. Please make sure 'rf_model_shap_timeseries.pkl' is placed in the root of your repo.")
                     st.stop()
 
                 model = bundle["model"]
