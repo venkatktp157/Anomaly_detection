@@ -1,4 +1,23 @@
+# Python cache
 __pycache__/
+*.pyc
+
+# Logs and data
+user_activity.log
+
+# Ignore pkl files except the SHAP model
+*.pkl
+!iforest_shap_timeseries.pkl
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Env and secrets
 .env
-*.csv
-secrets.toml
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+
+

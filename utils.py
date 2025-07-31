@@ -1,12 +1,14 @@
 import requests
-from sklearn.ensemble import IsolationForest
-from sklearn.cluster import KMeans
-import shap
-import matplotlib.pyplot as plt
 import json
 import sys
+import os
+import pickle
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+import shap
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor, IsolationForest
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # 🧠 Expert Role Prompts
 ROLE_PROMPTS = {
@@ -19,24 +21,18 @@ ROLE_PROMPTS = {
 def get_system_prompt(expert_choice):
     return ROLE_PROMPTS.get(expert_choice, ROLE_PROMPTS["🧑‍🔬 Data Scientist"])
 
-# 🧩 NEW: Payload Preparer
+# 🔐 Payload preparation for API send
 def prepare_payload(df, use_summary=False):
-    """
-    Determines whether to send full or summarized data based on size or toggle.
-    """
     full_dict = df.to_dict()
     size_estimate = sys.getsizeof(json.dumps(full_dict))
 
     if size_estimate > 900000 or use_summary:
         summary_dict = df.describe(include='all').to_dict()
-        return summary_dict, True  # True = summary mode
-    return full_dict, False  # False = full data mode
+        return summary_dict, True
+    return full_dict, False
 
-# 🚀 NEW: Modularized safe_send with Groq
+# 🚀 Send to Groq
 def safe_send(df, api_key, expert_choice, use_summary=False):
-    """
-    Sends data to Groq API, gracefully falling back to summary mode.
-    """
     data_dict, is_summary = prepare_payload(df, use_summary)
     system_prompt = get_system_prompt(expert_choice)
 
@@ -69,7 +65,7 @@ def safe_send(df, api_key, expert_choice, use_summary=False):
     except KeyError:
         return f"⚠️ Unexpected response structure:\n{response.text}", is_summary
 
-# ⚠️ SHAP Anomaly Detection
+# ⚠️ SHAP-based anomaly detection
 def detect_anomalies(df):
     numeric_df = df.select_dtypes(include='number').dropna()
     iso = IsolationForest(contamination=0.1, random_state=42)
@@ -82,51 +78,49 @@ def detect_anomalies(df):
     shap.plots.beeswarm(shap_values, max_display=10, show=False)
     return fig, df[df['anomaly'] == -1]
 
-# 🧮 Clustering
+# 🧮 Clustering logic
 def run_clustering(df, n_clusters=3):
     numeric_df = df.select_dtypes(include="number").dropna()
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
     df["cluster"] = kmeans.fit_predict(numeric_df)
     return df, kmeans
 
-# 🤔 Impact Simulator
-
-def simulate_impact(df, user_inputs, target):
+# 🤖 What-If Simulator using unified bundle
+def simulate_impact_from_bundle(user_inputs, bundle_path, target):
     """
-    Predicts the impact on a target metric using Random Forest regression
-    based on user-modified operational inputs.
-
-    Parameters:
-    - df (pd.DataFrame): Dataset containing numeric features and target.
-    - user_inputs (dict): Dictionary of simulated feature values.
-    - target (str): Name of the target column to predict.
-
-    Returns:
-    - pd.DataFrame: Modified features + predicted target.
+    Simulates prediction from unified pickle file containing:
+    - model
+    - scaler
+    - explainer
+    - feature order
+    - performance metrics, etc.
     """
+    try:
+        with open(bundle_path, "rb") as f:
+            bundle = pickle.load(f)
 
-    # Validate target
-    if target not in df.columns:
-        raise ValueError(f"Target column '{target}' not found.")
+        model = bundle["model"]
+        scaler = bundle["scaler"]
+        explainer = bundle.get("explainer")
+        feature_order = bundle["features"]
 
-    # Select numeric features excluding the target
-    features = [col for col in df.select_dtypes(include="number").columns if col != target]
-    X = df[features]
-    y = df[target]
+        # Validate input keys
+        missing = [feat for feat in feature_order if feat not in user_inputs]
+        if missing:
+            raise ValueError(f"Missing input features: {missing}")
 
-    # Train Random Forest Regressor
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X, y)
+        # Prepare input
+        input_vector = pd.DataFrame([user_inputs], columns=feature_order)
+        scaled_input = scaler.transform(input_vector)
+        prediction = model.predict(scaled_input)[0]
 
-    # Prepare simulation input
-    simulated_df = pd.DataFrame([user_inputs], columns=features)
+        input_vector[target] = prediction
+        input_vector.index = ["Simulated"]
 
-    # Predict target metric
-    predicted_value = model.predict(simulated_df)[0]
+        shap_result = explainer(scaled_input) if explainer else None
+        return input_vector, shap_result
 
-    # Combine simulated inputs and predicted target
-    result_df = simulated_df.copy()
-    result_df[target] = predicted_value
-    result_df.index = ["Simulated"]
-
-    return result_df
+    except Exception as e:
+        err_df = pd.DataFrame([user_inputs])
+        err_df[target] = "Prediction failed"
+        return err_df.assign(Error=str(e)), None
