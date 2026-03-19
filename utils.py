@@ -71,12 +71,20 @@ def detect_anomalies(df):
     iso = IsolationForest(contamination=0.1, random_state=42)
     df['anomaly'] = iso.fit_predict(numeric_df)
 
-    explainer = shap.Explainer(iso, numeric_df)
-    shap_values = explainer(numeric_df)
+    try:
+        explainer = shap.TreeExplainer(iso)  # safer than shap.Explainer
+        shap_values = explainer(numeric_df)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    shap.plots.beeswarm(shap_values, max_display=10, show=False)
-    return fig, df[df['anomaly'] == -1]
+        fig, ax = plt.subplots(figsize=(10, 6))
+        shap.plots.beeswarm(shap_values, max_display=10, show=False)
+        return fig, df[df['anomaly'] == -1]
+
+    except AttributeError:
+        # fallback if explainer is incompatible
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, "SHAP explainer not compatible.\nPlease rebuild bundle.",
+                ha="center", va="center")
+        return fig, df[df['anomaly'] == -1]
 
 # 🧮 Clustering logic
 def run_clustering(df, n_clusters=3):
@@ -117,8 +125,10 @@ def simulate_impact_from_bundle(user_inputs, bundle_path, target):
         input_vector[target] = prediction
         input_vector.index = ["Simulated"]
 
-        shap_result = explainer(scaled_input) if explainer else None
-        return input_vector, shap_result
+        try:
+            shap_result = explainer(scaled_input) if explainer else None
+        except AttributeError:
+            shap_result = None  # fallback
 
     except Exception as e:
         err_df = pd.DataFrame([user_inputs])
