@@ -33,8 +33,8 @@ if auth_status:
     st.write(f"Welcome *{name}* 👋")
     logger.info(f"User {username} logged in successfully")
 
-    st.set_page_config(page_title="Grok Agentic Operational Analyzer", layout="wide")
-    st.title("📊 Grok Agentic Operational Analyzer")
+    st.set_page_config(page_title="Groq Agentic Operational Analyzer", layout="wide")
+    st.title("📊 Groq Agentic Operational Analyzer")
 
     # 🔑 Load Groq API Key securely
     groq_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
