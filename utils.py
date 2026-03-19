@@ -99,7 +99,6 @@ def simulate_impact_from_bundle(user_inputs, bundle_path, target):
     Simulates prediction from unified pickle file containing:
     - model
     - scaler
-    - explainer
     - feature order
     - performance metrics, etc.
     """
@@ -109,7 +108,6 @@ def simulate_impact_from_bundle(user_inputs, bundle_path, target):
 
         model = bundle["model"]
         scaler = bundle["scaler"]
-        explainer = bundle.get("explainer")
         feature_order = bundle["features"]
 
         # Validate input keys
@@ -125,11 +123,15 @@ def simulate_impact_from_bundle(user_inputs, bundle_path, target):
         input_vector[target] = prediction
         input_vector.index = ["Simulated"]
 
+        # ✅ Build explainer dynamically instead of loading from pickle
         try:
-            shap_result = explainer(scaled_input) if explainer else None
-        except AttributeError:
-            shap_result = None  # fallback
+            explainer = shap.TreeExplainer(model)
+            shap_result = explainer(scaled_input)
+        except Exception as e:
+            shap_result = None
+            print(f"⚠️ SHAP explainer not available: {e}")
 
+        return input_vector, shap_result
     except Exception as e:
         err_df = pd.DataFrame([user_inputs])
         err_df[target] = "Prediction failed"
