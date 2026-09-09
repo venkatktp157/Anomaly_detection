@@ -48,7 +48,7 @@ def safe_send(df, api_key, expert_choice, use_summary=False):
     ]
 
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "messages": messages,
         "temperature": 0.7
     }
